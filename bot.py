@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import subprocess
-from urllib.parse import parse_qs, urlsplit, urlunsplit
+from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -350,12 +350,45 @@ def extract_hepsiburada_product(page_html: str):
             price_val = offers.get("price")
             price = format_try_price(price_val) if price_val else None
             seller = (offers.get("seller") or {}).get("name") or (product.get("brand") or {}).get("name")
+            sku = product.get("sku")
             if title or image:
-                return title, image, price, seller
-    return None, None, None, None
+                return title, image, price, seller, sku
+    return None, None, None, None, None
 
 
 HB_IMAGE_URL_RE = re.compile(r'https://productimages\.hepsiburada\.net/[^\s"\'\\]+')
+
+HB_CAMPAIGN_PRICE_RE = re.compile(
+    r'"campaignPriceInfo":\{"contentType":"([^"]+)"[^}]*?"discountedPrice":([0-9.]+)'
+)
+
+
+def extract_hepsiburada_premium_price(page_html: str, sku: str) -> str | None:
+    """Arama sonuçları sayfasındaki listing kartlarında, giriş yapmadan görünen
+    'Premium ile' fiyatını (campaignPriceInfo) SKU eşleştirerek bulur."""
+    for match in re.finditer(re.escape(f'"{sku}"'), page_html):
+        window = page_html[match.end() : match.end() + 3000]
+        campaign_match = HB_CAMPAIGN_PRICE_RE.search(window)
+        if campaign_match and campaign_match.group(1) == "Premium":
+            return format_try_price(campaign_match.group(2))
+    return None
+
+
+HB_QUERY_NOISE_RE = re.compile(r"[%'&]")
+
+
+async def fetch_hepsiburada_premium_price(sku: str, title: str) -> str | None:
+    if not sku:
+        return None
+    cleaned_title = HB_QUERY_NOISE_RE.sub(" ", title or "")
+    query_words = cleaned_title.split()[:8]
+    query = quote(" ".join(query_words) or sku)
+    try:
+        page_html = await curl_get_text(f"https://www.hepsiburada.com/ara?q={query}")
+    except Exception:
+        logger.exception("Hepsiburada Premium fiyatı aranamadı: %s", sku)
+        return None
+    return extract_hepsiburada_premium_price(page_html, sku)
 
 
 def extract_hepsiburada_any_image(page_html: str) -> str | None:
@@ -514,13 +547,17 @@ async def fetch_product_info(url: str):
         price = extract_n11_price(page_html)
         store = extract_n11_store(page_html)
     elif is_hepsiburada:
-        hb_title, hb_image, hb_price, hb_store = extract_hepsiburada_product(page_html)
+        hb_title, hb_image, hb_price, hb_store, hb_sku = extract_hepsiburada_product(page_html)
         title = title or hb_title
         image = image or hb_image
         price = hb_price
         store = hb_store
         if not image:
             image = extract_hepsiburada_any_image(page_html)
+        if hb_sku:
+            premium_price = await fetch_hepsiburada_premium_price(hb_sku, title)
+            if premium_price:
+                price = premium_price
     elif is_amazon:
         am_title, am_image, am_price, am_store = extract_amazon_product(page_html)
         title = title or am_title

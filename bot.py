@@ -433,11 +433,13 @@ async def resolve_amazon_link(url: str) -> str:
     return html.unescape(match.group(0)) if match else url
 
 
+STATUS_MARKER = b"\n__HTTP_STATUS__:"
+
+
 def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
     args = [
         "curl",
         "-sL",
-        "-f",
         "--compressed",
         "--max-time",
         str(timeout),
@@ -455,6 +457,8 @@ def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
         "Sec-Fetch-Site: cross-site",
         "-H",
         "Sec-Fetch-Dest: document",
+        "-w",
+        "\n__HTTP_STATUS__:%{http_code}",
         url,
     ]
     result = subprocess.run(args, capture_output=True, timeout=timeout + 5)
@@ -462,7 +466,16 @@ def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
         raise RuntimeError(
             f"curl hata verdi (kod {result.returncode}): {result.stderr.decode(errors='ignore')[:300]}"
         )
-    return result.stdout if binary else result.stdout
+    raw = result.stdout
+    idx = raw.rfind(STATUS_MARKER)
+    status = None
+    if idx != -1:
+        status = raw[idx + len(STATUS_MARKER) :].decode(errors="ignore").strip()
+        raw = raw[:idx]
+    if status and not status.startswith("2"):
+        snippet = raw[:400].decode("utf-8", errors="replace") if not binary else f"<binary, {len(raw)} bayt>"
+        raise RuntimeError(f"HTTP {status} - yanıt: {snippet!r}")
+    return raw
 
 
 async def curl_get_text(url: str, timeout: int = 15) -> str:

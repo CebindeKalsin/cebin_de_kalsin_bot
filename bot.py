@@ -469,6 +469,18 @@ async def resolve_amazon_link(url: str) -> str:
     return html.unescape(match.group(0)) if match else url
 
 
+async def resolve_winfluenced_link(url: str) -> str:
+    """winfluenced.com kısa linkleri de bir ara sayfaya yönlendiriyor; gerçek Amazon
+    linki yönlendirmenin web_url parametresinde geliyor."""
+    if urlsplit(url).netloc != "winfluenced.com":
+        return url
+    location = await asyncio.to_thread(_curl_first_location, url, 10)
+    if not location:
+        return url
+    web_url = parse_qs(urlsplit(location).query).get("web_url")
+    return web_url[0] if web_url else url
+
+
 STATUS_MARKER = b"\n__HTTP_STATUS__:"
 
 
@@ -527,6 +539,7 @@ async def fetch_product_info(url: str):
     url = normalize_n11_link(url)
     url = await resolve_hepsiburada_link(url)
     url = await resolve_amazon_link(url)
+    url = await resolve_winfluenced_link(url)
     url = await resolve_yukarikaydir_link(url)
     is_n11 = "n11.com" in url
     is_hepsiburada = "hepsiburada.com" in url

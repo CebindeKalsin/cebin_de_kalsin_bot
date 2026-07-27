@@ -473,7 +473,6 @@ def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
     args = [
         "curl",
         "-sL",
-        "--compressed",
         "--max-time",
         str(timeout),
         "-A",

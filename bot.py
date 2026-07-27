@@ -32,6 +32,9 @@ PORT = int(os.environ.get("PORT", 10000))
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # örn: https://cebin-de-kalsin-bot.onrender.com
 # WEBHOOK_URL tanımlıysa bulut modu (Render vb.), tanımlı değilse yerel bilgisayarda
 # polling modu ile çalışır. Buluta taşırken kodu değil sadece bu değişkeni eklersin.
+CURL_PATH = os.environ.get("CURL_PATH", "curl")
+# Bazı Windows makinelerinde eski/sıkıştırma desteklemeyen bir curl.exe (Sistem32) PATH'te
+# önce geliyor; böyle durumlarda .env dosyasına CURL_PATH=<yeni curl'ün tam yolu> eklenir.
 
 owner_filter = filters.User(user_id=OWNER_ID)
 
@@ -233,7 +236,7 @@ HB_SHORT_LINK_HOSTS = {"app.hb.biz", "hb.biz"}
 
 def _curl_first_location(url: str, timeout: int) -> str | None:
     args = [
-        "curl",
+        CURL_PATH,
         "-s",
         "-D",
         "-",
@@ -471,8 +474,9 @@ STATUS_MARKER = b"\n__HTTP_STATUS__:"
 
 def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
     args = [
-        "curl",
+        CURL_PATH,
         "-sL",
+        "--compressed",
         "--max-time",
         str(timeout),
         "-A",

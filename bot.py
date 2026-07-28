@@ -242,6 +242,8 @@ def _curl_first_location(url: str, timeout: int) -> str | None:
         "-",
         "-o",
         os.devnull,
+        "--connect-timeout",
+        "8",
         "--max-time",
         str(timeout),
         "-A",
@@ -489,6 +491,8 @@ def _curl_get(url: str, binary: bool, timeout: int) -> bytes:
         CURL_PATH,
         "-sL",
         "--compressed",
+        "--connect-timeout",
+        "8",
         "--max-time",
         str(timeout),
         "-A",
@@ -570,10 +574,6 @@ async def fetch_product_info(url: str):
         store = hb_store
         if not image:
             image = extract_hepsiburada_any_image(page_html)
-        if hb_sku:
-            premium_price = await fetch_hepsiburada_premium_price(hb_sku, title)
-            if premium_price:
-                price = premium_price
     elif is_amazon:
         am_title, am_image, am_price, am_store = extract_amazon_product(page_html)
         title = title or am_title

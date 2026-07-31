@@ -35,6 +35,11 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # örn: https://cebin-de-kalsin-bot
 CURL_PATH = os.environ.get("CURL_PATH", "curl")
 # Bazı Windows makinelerinde eski/sıkıştırma desteklemeyen bir curl.exe (Sistem32) PATH'te
 # önce geliyor; böyle durumlarda .env dosyasına CURL_PATH=<yeni curl'ün tam yolu> eklenir.
+# Winget paketi güncellenince bu tam yol geçersiz kalabilir; dosya artık yoksa varsayılan
+# "curl" komutuna otomatik düşülür (tüm platformların birden bozulmaması için).
+if CURL_PATH != "curl" and not os.path.isfile(CURL_PATH):
+    logger.warning("CURL_PATH bulunamadı (%s), varsayılan 'curl' komutuna düşülüyor.", CURL_PATH)
+    CURL_PATH = "curl"
 
 owner_filter = filters.User(user_id=OWNER_ID)
 
